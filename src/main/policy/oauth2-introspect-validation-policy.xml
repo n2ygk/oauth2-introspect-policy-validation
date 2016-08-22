@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<policy
+<policy 
     xmlns="http://www.mulesoft.org/schema/mule/policy" 
     xmlns:http="http://www.mulesoft.org/schema/mule/http"
     xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
@@ -11,12 +11,14 @@
     xsi:schemaLocation="http://www.mulesoft.org/schema/mule/policy http://www.mulesoft.org/schema/mule/policy/current/mule-policy.xsd
                         http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
                         http://www.mulesoft.org/schema/mule/api-platform-gw http://www.mulesoft.org/schema/mule/api-platform-gw/current/mule-api-platform-gw.xsd
+                        http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
                         http://www.mulesoft.org/schema/mule/scripting http://www.mulesoft.org/schema/mule/scripting/current/mule-scripting.xsd">
+   <!--  can't get id={{policyId}} to work for integers -->
     <!--
         Based on the sample custom policy and the JWT validation policy (https://github.com/mulesoft/api-policies/tree/master/jwt-validation-policy)
 
-        The policy has one configuration parameters (see the YAML file):
-        - introspectUri: RFC 7662 introspect endpoint
+        The policy has these configuration parameters (see the YAML file):
+        - introspectHost,Port,Uri: RFC 7662 introspect endpoint
         All other RFC 6749 endpoints are defined in the RAML for the given app being protected.
         It is important that the introspect endpoint be coordinated with them.
 
@@ -42,6 +44,9 @@
     <pointcut>
         <api-platform-gw:api-pointcut apiName="{{ apiName }}" apiVersion="{{ apiVersionName }}"/>
     </pointcut>
+    
+    <!-- can't get {{introspectPort}} to work for integers -->
+    <http:request-config name="http-request-config" host="{{introspectHost}}" port="{{introspectPort}}" doc:name="HTTP Request Configuration"/>
 
  	<!-- Response messages in case of rejecting a message -->
     <mule:processor-chain xmlns:mule="http://www.mulesoft.org/schema/mule/core" name="authorizationHeaderViolation">
@@ -87,53 +92,38 @@
         <mule:message-filter xmlns:mule="http://www.mulesoft.org/schema/mule/core" onUnaccepted="clientParameterViolation">
 			<mule:expression-filter xmlns:mule="http://www.mulesoft.org/schema/mule/core" expression="#[message.inboundProperties.'http.query.params'.client_secret != null]" name="clientSecretFilter"/>
         </mule:message-filter>
-        <mule:set-variable variableName="client_secret" value="#[message.inboundProperties.'http.query.params'.client_secret]" />
         <mule:set-variable variableName="authn" value="#[message.inboundProperties.'http.query.params'.client_id]:#[message.inboundProperties.'http.query.params'.client_secret]" />
-        <mule:set-property propertyName="Authorization" value="Basic #[java.util.Base64.getEncoder().encodeToString(flowVars.'authn'.getBytes())]" />
+        <mule:set-variable variableName="Authorization" value="Basic #[java.util.Base64.getEncoder().encodeToString(flowVars.'authn'.getBytes())]" />
 
-        <mule:logger message="Policy {{ policyId }} access_token=#[flowVars.'access_token'] authn=#[flowVars.'authn'] Authorization=#[message.outboundProperties.'Authorization']" level="WARN" />
+        <mule:logger message="Policy {{ policyId }} access_token=#[flowVars.'access_token'] authn=#[flowVars.'authn'] Authorization=#[flowVars.'Authorization']" level="WARN" />
         <!-- now actually do something useful 
         	Invoke the introspect endpoint with HTTP Basc Auth(client_id:client_secret) for the Authorization header
         	and query parameter 'token=<access_token>'   
         -->
-        <mule:logger message="Policy {{ policyId }} invoking introspectUri: {{ introspectUri }}" level="WARN" />
-        <!-- I can't figure out how to see flowVars in my script, but I can see properties -->
-        <mule:set-property propertyName="token" value="#[flowVars.'access_token']" />
-        <mule:set-property propertyName="introspectUri" value="{{introspectUri}}" />
-		<scripting:component>
-			<scripting:script engine="jython"><![CDATA[
-print("importing json")
-import json
-print("importing urllib & urllib2")
-import urllib
-import urllib2
-print("Hello, world message: %s\nEOM"%message)
-print("message.getInboundPropertyNames %s"%message.getInboundPropertyNames())
-for n in message.getInboundPropertyNames():
-    print(n,message.getInboundProperty(n))
-print("message.getOutboundPropertyNames %s"%message.getOutboundPropertyNames())
-print("message.getSessionPropertyNames %s"%message.getSessionPropertyNames())
-print("message.getPropertyNames %s"%message.getPropertyNames())
-print("DIR(muleContext): %s",dir(muleContext))
-URL=message.getProperty('introspectUri')
-token=message.getProperty('token')
-Authorization=message.getProperty('Authorization')
-print("%s?token=%s\nheader: %s"%(URL,token,Authorization))
-header={'Authorization': Authorization}
-values = {'token' : token}
-data = urllib.urlencode(values)
-req = urllib2.Request(URL, data, header)
-print("about to do urlopen")
-response = urllib2.urlopen(req)
-print("response %s"%response)
-the_page = response.read()
-print("the_page %s"%the_page)
-]]>
-			</scripting:script>
-		</scripting:component>
-        	
-    
+        <mule:logger message="Policy {{ policyId }} invoking introspectUri: {{introspectHost}}:{{introspectPort}}/{{introspectPath}}" level="WARN" />
+        <!-- See https://forums.mulesoft.com/questions/2466/is-it-possible-to-call-a-rest-service-from-custom-policy-of-anypoint-platform.html -->     
+		<mule:set-variable variableName="originalPayload" value="#[payload]" />
+     	<mule:enricher target="flowVars.'introspect_response'">
+       		<mule:processor-chain>
+       		    <http:request config-ref="http-request-config" path="{{introspectPath}}" method="POST">
+     		        <http:request-builder>
+	          		    <http:query-param paramName="token" value="#[flowVars.'access_token']" />
+   		                <http:header headerName="Authorization" value="#[flowVars.'Authorization']" /> 
+       		    	</http:request-builder>	
+       		    </http:request>
+	            <mule:object-to-string-transformer doc:name="Object to String"/>
+       		</mule:processor-chain>
+     	</mule:enricher>
+     	<mule:logger message="Introspect response: #[flowVars.'introspect_response']" level="WARN"/>      
+		<!-- Restore original payload and headers -->
+		<mule:set-payload value="#[flowVars['originalPayload']]" />
+		<!-- compare scopes, etc? -->
+		<!-- need to turn the string into JSON in and then map to X-AGW-* -->
+        <mule:set-property propertyName="X-AGW-introspect" value="#[flowVars.'introspect_response']" />
+
+
         <!-- clean up variables, properties, etc. -->
+        
     </before>
     
     <!-- The following provides a custom trait to the RAML of the API if it uses APIkit. Otherwise it is ignored. -->

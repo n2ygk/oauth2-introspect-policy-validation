@@ -48,9 +48,24 @@ type: custom
 category: Security
 configuration:
   - 
-    propertyName: introspectUri
+    propertyName: introspectPath
     name: Introspect URI
-    description: OAuth 2.0 introspect endoint URI
+    description: OAuth 2.0 introspect endoint path
     sensitive: false
     type: string
     optional: false
+  - 
+    propertyName: introspectHost
+    name: Introspect host
+    description: OAuth 2.0 introspect endoint host
+    sensitive: false
+    type: string
+    optional: false
+  - 
+    propertyName: introspectPort
+    name: Introspect port
+    description: OAuth 2.0 introspect endoint port
+    sensitive: false
+    type: int
+    optional: false
+    
