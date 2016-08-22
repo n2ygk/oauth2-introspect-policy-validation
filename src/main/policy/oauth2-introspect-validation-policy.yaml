@@ -1,24 +1,37 @@
-# The standard "OAuth 2.0 access token enforcement using external provider policy" expects
-# a token validation endpoint and a return map that OpenAM doesn't provide in the undocumented format expected.
-# This custom policy replaces that by using the RFC 7662 introspect endpoint to
-# both validate the Access Token and return the valid scopes and other RFC 7662 response values.
+# The Mulesoft out-of-the-box "OAuth 2.0 access token enforcement using external provider policy" expects
+# a token validation endpoint and a return map that many OAuth2 servers don't provide in the *undocumented* 
+# format expected (RFC 6749 does not define the validation endpoint implementaiton and Mulesoft doesn't
+# document how they implement it).
+#
+# This custom policy is a replacement for that using the RFC 7662 introspect endpoint to
+# both validate the Access Token and return the valid scopes and other RFC 7662 response values
+# for use downstream in the API implementation. N.B. Whereas the Mulesoft policy only needs the
+# Authorization Token in order to validate and introspect it, this policy additionally needs the Client ID and
+# Secret, since OpenAM will only respond to an introspect that has been validated with Basic Auth
+# using them.
 #
 # See https://docs.mulesoft.com/anypoint-studio/v/6/studio-policy-editor and
 # https://docs.mulesoft.com/api-manager/creating-a-policy-walkthrough
 #
+# This policy requires:
+#  - header Authorization: Bearer <access_token>
+#  - parameters client_id and client_secret
+#
+# On success, it adds the following headers to the flow based on the keys in the introspection response.
+#  X-AGW-scope
+#  etc. TBD upon further experimentation.
+#
 # OpenAM endpoints are documented here:
 # https://backstage.forgerock.com/#!/docs/openam/13.5/dev-guide#rest-api-oauth2-client-endpoints
+#
 # The introspect endpoint requires the following:
 #  - method POST
 #  - header Authorization: Basic <HTTPBasicAuth(client_id,client_secret)>
 #  - parameter token=<access_token>
 #
-# This policy requires:
-#  - header Authorization: Bearer <access_token>
-#  - parameters client_id and client_secret
-# 
-# I guess it's OK for us to ask for the client_id and client_secret? If there's a client_id_required
-# policy ahead of this one (like SLA-based Rate limiting). This is not required by the standard OAuth2 policy but so what?
+# This policy has been tested only with OpenAM 14.0, so might not work with other RFC 7662 implementations.
+#
+# Copyright (c) 2016 The Trustees of Columbia University in the City of New York
 #
 name: OAuth 2.0 Access Token Introspection Policy
 description: |
@@ -36,8 +49,8 @@ category: Security
 configuration:
   - 
     propertyName: introspectUri
-    name: Introspect URL
-    description: OAuth 2.0 introspect endoint URL
+    name: Introspect URI
+    description: OAuth 2.0 introspect endoint URI
     sensitive: false
     type: string
     optional: false

@@ -1,19 +1,24 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<policy 
+<policy
     xmlns="http://www.mulesoft.org/schema/mule/policy" 
+    xmlns:http="http://www.mulesoft.org/schema/mule/http"
+    xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
     policyName="OAuth 2.0 Access Token Introspection Policy"
     xmlns:mule="http://www.mulesoft.org/schema/mule/core"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xmlns:api-platform-gw="http://www.mulesoft.org/schema/mule/api-platform-gw"
+    xmlns:scripting="http://www.mulesoft.org/schema/mule/scripting"
     xsi:schemaLocation="http://www.mulesoft.org/schema/mule/policy http://www.mulesoft.org/schema/mule/policy/current/mule-policy.xsd
                         http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
-                        http://www.mulesoft.org/schema/mule/api-platform-gw http://www.mulesoft.org/schema/mule/api-platform-gw/current/mule-api-platform-gw.xsd">
+                        http://www.mulesoft.org/schema/mule/api-platform-gw http://www.mulesoft.org/schema/mule/api-platform-gw/current/mule-api-platform-gw.xsd
+                        http://www.mulesoft.org/schema/mule/scripting http://www.mulesoft.org/schema/mule/scripting/current/mule-scripting.xsd">
     <!--
         Based on the sample custom policy and the JWT validation policy (https://github.com/mulesoft/api-policies/tree/master/jwt-validation-policy)
 
-        The policy has two configuration parameters (see the YAML file):
-        - scope: list of required scopes
-        - introspectURL: URL of RFC 7662 introspect endpoint
+        The policy has one configuration parameters (see the YAML file):
+        - introspectUri: RFC 7662 introspect endpoint
+        All other RFC 6749 endpoints are defined in the RAML for the given app being protected.
+        It is important that the introspect endpoint be coordinated with them.
 
         For more information about creating custom policies see:
         https://docs.mulesoft.com/api-manager/creating-a-policy-walkthrough
@@ -37,6 +42,7 @@
     <pointcut>
         <api-platform-gw:api-pointcut apiName="{{ apiName }}" apiVersion="{{ apiVersionName }}"/>
     </pointcut>
+
  	<!-- Response messages in case of rejecting a message -->
     <mule:processor-chain xmlns:mule="http://www.mulesoft.org/schema/mule/core" name="authorizationHeaderViolation">
 		<mule:logger message="Policy {{ policyId }} filtered the message #[message.getId()] based on OAuth 2.0 Authorization header validation" level="DEBUG" />     
@@ -60,18 +66,18 @@
 
     <before>
 		<!-- Validate headers and parameters -->
-        <mule:logger message="Policy {{ policyId }} applying 'message.inboundProperties['Authorization'] filter" level="DEBUG" />        
+        <mule:logger message="Policy {{ policyId }} applying 'message.inboundProperties.'Authorization' filter" level="DEBUG" />        
         <mule:message-filter xmlns:mule="http://www.mulesoft.org/schema/mule/core" onUnaccepted="authorizationHeaderViolation">
-			<mule:expression-filter xmlns:mule="http://www.mulesoft.org/schema/mule/core" expression="#[message.inboundProperties['Authorization'] != null]" name="AuthorizationHeaderFilter"/>
+			<mule:expression-filter xmlns:mule="http://www.mulesoft.org/schema/mule/core" expression="#[message.inboundProperties.'Authorization' != null]" name="AuthorizationHeaderFilter"/>
         </mule:message-filter>
         <!-- TODO: combine these into one statement -->                
         <!-- continue only if the Authorization header value has a valid format -->     
-        <mule:logger message="Policy {{ policyId }} applying 'message.inboundProperties['Authorization'].startsWith('Bearer ')' filter" level="DEBUG" />        
+        <mule:logger message="Policy {{ policyId }} applying 'message.inboundProperties.'Authorization'.startsWith('Bearer ')' filter" level="DEBUG" />        
         <mule:message-filter xmlns:mule="http://www.mulesoft.org/schema/mule/core" onUnaccepted="authorizationHeaderViolation">
-			<mule:expression-filter xmlns:mule="http://www.mulesoft.org/schema/mule/core" expression="#[message.inboundProperties['Authorization'].startsWith('Bearer ')]" name="AuthorizationHeaderFormatFilter"/>
+			<mule:expression-filter xmlns:mule="http://www.mulesoft.org/schema/mule/core" expression="#[message.inboundProperties.'Authorization'.startsWith('Bearer ')]" name="AuthorizationHeaderFormatFilter"/>
         </mule:message-filter>
-        <mule:set-variable variableName="access_token" value="#[message.inboundProperties['Authorization'].substring(message.inboundProperties['Authorization'].indexOf(' ') + 1)]" />
-        <mule:logger message="Access token is #[flowVars['access_token']]" level="DEBUG" />
+        <mule:set-variable variableName="access_token" value="#[message.inboundProperties.'Authorization'.substring(message.inboundProperties.'Authorization'.indexOf(' ') + 1)]" />
+        <mule:logger message="Access token is #[flowVars.'access_token']" level="DEBUG" />
         <mule:logger message="Policy {{ policyId }} applying client_id != null filter" level="DEBUG" />        
         <mule:message-filter xmlns:mule="http://www.mulesoft.org/schema/mule/core" onUnaccepted="clientParameterViolation">
 			<mule:expression-filter xmlns:mule="http://www.mulesoft.org/schema/mule/core" expression="#[message.inboundProperties.'http.query.params'.client_id != null]" name="clientIdFilter"/>
@@ -82,14 +88,57 @@
 			<mule:expression-filter xmlns:mule="http://www.mulesoft.org/schema/mule/core" expression="#[message.inboundProperties.'http.query.params'.client_secret != null]" name="clientSecretFilter"/>
         </mule:message-filter>
         <mule:set-variable variableName="client_secret" value="#[message.inboundProperties.'http.query.params'.client_secret]" />
-  		<!-- now actually do something useful -->
-        <mule:logger message="Policy {{ policyId }} access_token=#[flowVars['access_token']] client_id=#[flowVars['client_id']] client_secret=#[flowVars['client_secret']]" level="DEBUG" />
-        
+        <mule:set-variable variableName="authn" value="#[message.inboundProperties.'http.query.params'.client_id]:#[message.inboundProperties.'http.query.params'.client_secret]" />
+        <mule:set-property propertyName="Authorization" value="Basic #[java.util.Base64.getEncoder().encodeToString(flowVars.'authn'.getBytes())]" />
+
+        <mule:logger message="Policy {{ policyId }} access_token=#[flowVars.'access_token'] authn=#[flowVars.'authn'] Authorization=#[message.outboundProperties.'Authorization']" level="WARN" />
+        <!-- now actually do something useful 
+        	Invoke the introspect endpoint with HTTP Basc Auth(client_id:client_secret) for the Authorization header
+        	and query parameter 'token=<access_token>'   
+        -->
+        <mule:logger message="Policy {{ policyId }} invoking introspectUri: {{ introspectUri }}" level="WARN" />
+        <!-- I can't figure out how to see flowVars in my script, but I can see properties -->
+        <mule:set-property propertyName="token" value="#[flowVars.'access_token']" />
+        <mule:set-property propertyName="introspectUri" value="{{introspectUri}}" />
+		<scripting:component>
+			<scripting:script engine="jython"><![CDATA[
+print("importing json")
+import json
+print("importing urllib & urllib2")
+import urllib
+import urllib2
+print("Hello, world message: %s\nEOM"%message)
+print("message.getInboundPropertyNames %s"%message.getInboundPropertyNames())
+for n in message.getInboundPropertyNames():
+    print(n,message.getInboundProperty(n))
+print("message.getOutboundPropertyNames %s"%message.getOutboundPropertyNames())
+print("message.getSessionPropertyNames %s"%message.getSessionPropertyNames())
+print("message.getPropertyNames %s"%message.getPropertyNames())
+print("DIR(muleContext): %s",dir(muleContext))
+URL=message.getProperty('introspectUri')
+token=message.getProperty('token')
+Authorization=message.getProperty('Authorization')
+print("%s?token=%s\nheader: %s"%(URL,token,Authorization))
+header={'Authorization': Authorization}
+values = {'token' : token}
+data = urllib.urlencode(values)
+req = urllib2.Request(URL, data, header)
+print("about to do urlopen")
+response = urllib2.urlopen(req)
+print("response %s"%response)
+the_page = response.read()
+print("the_page %s"%the_page)
+]]>
+			</scripting:script>
+		</scripting:component>
+        	
+    
+        <!-- clean up variables, properties, etc. -->
     </before>
     
     <!-- The following provides a custom trait to the RAML of the API if it uses APIkit. Otherwise it is ignored. -->
 	<!-- Copied this from the generic OAuth2 policy -->
-<!--  DEBUG THIS LATER   <raml-security-scheme id="oauth_2.0"><![CDATA[
+<!--  DEBUG THIS LATER; it was throwing a parse error   <raml-security-scheme id="oauth_2.0"><![CDATA[
       description: |
         This API supports OAuth 2.0 and OpenID Connect 1.0 for authenticating all API requests.
       type: OAuth 2.0
