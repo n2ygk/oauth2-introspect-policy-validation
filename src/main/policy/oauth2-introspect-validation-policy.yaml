@@ -1,0 +1,43 @@
+# The standard "OAuth 2.0 access token enforcement using external provider policy" expects
+# a token validation endpoint and a return map that OpenAM doesn't provide in the undocumented format expected.
+# This custom policy replaces that by using the RFC 7662 introspect endpoint to
+# both validate the Access Token and return the valid scopes and other RFC 7662 response values.
+#
+# See https://docs.mulesoft.com/anypoint-studio/v/6/studio-policy-editor and
+# https://docs.mulesoft.com/api-manager/creating-a-policy-walkthrough
+#
+# OpenAM endpoints are documented here:
+# https://backstage.forgerock.com/#!/docs/openam/13.5/dev-guide#rest-api-oauth2-client-endpoints
+# The introspect endpoint requires the following:
+#  - method POST
+#  - header Authorization: Basic <HTTPBasicAuth(client_id,client_secret)>
+#  - parameter token=<access_token>
+#
+# This policy requires:
+#  - header Authorization: Bearer <access_token>
+#  - parameters client_id and client_secret
+# 
+# I guess it's OK for us to ask for the client_id and client_secret? If there's a client_id_required
+# policy ahead of this one (like SLA-based Rate limiting). This is not required by the standard OAuth2 policy but so what?
+#
+name: OAuth 2.0 Access Token Introspection Policy
+description: |
+  Validates OAuth2/Open ID Connect Authorization token using the RFC 7662 introspect endpoint. 
+  Returns scope, sub, etc.
+id: oauth2-token-introspection
+providedCharacteristics: 
+  - OAuth 2.0 protected
+requiredCharacteristics:
+  - Client ID required
+requiresConnectivity: true
+standalone: true
+type: custom
+category: Security
+configuration:
+  - 
+    propertyName: introspectUri
+    name: Introspect URL
+    description: OAuth 2.0 introspect endoint URL
+    sensitive: false
+    type: string
+    optional: false

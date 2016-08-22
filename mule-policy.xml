@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<mule-policy xmlns="http://www.mulesoft.com/tooling/project" runtimeId="org.mule.tooling.server.3.8.0.ee" schemaVersion="5.3.0.0">
+    <name>oauth2-introspect-validation-policy</name>
+    <description></description>
+    <xmlFileName>oauth2-introspect-validation-policy.xml</xmlFileName>
+    <yamlFileName>oauth2-introspect-validation-policy.yaml</yamlFileName>
+</mule-policy>

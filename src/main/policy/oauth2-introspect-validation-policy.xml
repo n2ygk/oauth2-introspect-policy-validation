@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<policy 
+    xmlns="http://www.mulesoft.org/schema/mule/policy" 
+    policyName="OAuth 2.0 Access Token Introspection Policy"
+    xmlns:mule="http://www.mulesoft.org/schema/mule/core"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns:api-platform-gw="http://www.mulesoft.org/schema/mule/api-platform-gw"
+    xsi:schemaLocation="http://www.mulesoft.org/schema/mule/policy http://www.mulesoft.org/schema/mule/policy/current/mule-policy.xsd
+                        http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+                        http://www.mulesoft.org/schema/mule/api-platform-gw http://www.mulesoft.org/schema/mule/api-platform-gw/current/mule-api-platform-gw.xsd">
+    <!--
+        Based on the sample custom policy and the JWT validation policy (https://github.com/mulesoft/api-policies/tree/master/jwt-validation-policy)
+
+        The policy has two configuration parameters (see the YAML file):
+        - scope: list of required scopes
+        - introspectURL: URL of RFC 7662 introspect endpoint
+
+        For more information about creating custom policies see:
+        https://docs.mulesoft.com/api-manager/creating-a-policy-walkthrough
+        and
+        https://docs.mulesoft.com/api-manager/applying-custom-policies
+    -->
+
+    <!--
+        A pointcut controls the scope of a policy application. You can use
+        different types of conditions to determine if the policy must be
+        applied.
+
+        api-platform-gw:api-pointcut: Applies the policy to a particular API.
+        apiName/apiVersion values are compared against the auto-discovery
+        global element defined in your Mule project.
+        See: https://docs.mulesoft.com/api-manager/api-auto-discovery
+
+        For other kinds of pointcut conditions see: 
+        https://docs.mulesoft.com/api-manager/applying-custom-policies
+    -->
+    <pointcut>
+        <api-platform-gw:api-pointcut apiName="{{ apiName }}" apiVersion="{{ apiVersionName }}"/>
+    </pointcut>
+ 	<!-- Response messages in case of rejecting a message -->
+    <mule:processor-chain xmlns:mule="http://www.mulesoft.org/schema/mule/core" name="authorizationHeaderViolation">
+		<mule:logger message="Policy {{ policyId }} filtered the message #[message.getId()] based on OAuth 2.0 Authorization header validation" level="DEBUG" />     
+		<mule:set-property propertyName="http.status" value="403"/>    
+		<mule:set-property propertyName="Content-Type" value="application/json"/>
+		<mule:set-payload value='{ "error" : "Policy {{ policyId }}: Authorization header is missing or not of type Bearer access_token."}'/>
+    </mule:processor-chain>
+
+    <mule:processor-chain xmlns:mule="http://www.mulesoft.org/schema/mule/core" name="invalidScopeViolation">
+		<mule:logger message="Policy {{ policyId }} filtered the message #[message.getId()] based on OAuth 2.0 scope validation" level="DEBUG" />     
+		<mule:set-property propertyName="http.status" value="403"/>    
+		<mule:set-property propertyName="Content-Type" value="application/json"/>
+		<mule:set-payload value='{ "error" : "Policy {{ policyId }}: Access Token does not have the required scope {{scope}}."}'/>
+    </mule:processor-chain>
+ 
+    <mule:processor-chain xmlns:mule="http://www.mulesoft.org/schema/mule/core" name="clientParameterViolation">
+		<mule:set-property propertyName="http.status" value="403"/>    
+		<mule:set-property propertyName="Content-Type" value="application/json"/>
+		<mule:set-payload value='{ "error" : "Policy {{ policyId }}: The message does not contain the client_id and/or client_secret parameters"}'/>
+    </mule:processor-chain>       
+
+    <before>
+		<!-- Validate headers and parameters -->
+        <mule:logger message="Policy {{ policyId }} applying 'message.inboundProperties['Authorization'] filter" level="DEBUG" />        
+        <mule:message-filter xmlns:mule="http://www.mulesoft.org/schema/mule/core" onUnaccepted="authorizationHeaderViolation">
+			<mule:expression-filter xmlns:mule="http://www.mulesoft.org/schema/mule/core" expression="#[message.inboundProperties['Authorization'] != null]" name="AuthorizationHeaderFilter"/>
+        </mule:message-filter>
+        <!-- TODO: combine these into one statement -->                
+        <!-- continue only if the Authorization header value has a valid format -->     
+        <mule:logger message="Policy {{ policyId }} applying 'message.inboundProperties['Authorization'].startsWith('Bearer ')' filter" level="DEBUG" />        
+        <mule:message-filter xmlns:mule="http://www.mulesoft.org/schema/mule/core" onUnaccepted="authorizationHeaderViolation">
+			<mule:expression-filter xmlns:mule="http://www.mulesoft.org/schema/mule/core" expression="#[message.inboundProperties['Authorization'].startsWith('Bearer ')]" name="AuthorizationHeaderFormatFilter"/>
+        </mule:message-filter>
+        <mule:set-variable variableName="access_token" value="#[message.inboundProperties['Authorization'].substring(message.inboundProperties['Authorization'].indexOf(' ') + 1)]" />
+        <mule:logger message="Access token is #[flowVars['access_token']]" level="DEBUG" />
+        <mule:logger message="Policy {{ policyId }} applying client_id != null filter" level="DEBUG" />        
+        <mule:message-filter xmlns:mule="http://www.mulesoft.org/schema/mule/core" onUnaccepted="clientParameterViolation">
+			<mule:expression-filter xmlns:mule="http://www.mulesoft.org/schema/mule/core" expression="#[message.inboundProperties.'http.query.params'.client_id != null]" name="clientIdFilter"/>
+        </mule:message-filter>
+        <mule:set-variable variableName="client_id" value="#[message.inboundProperties.'http.query.params'.client_id]" />
+        <mule:logger message="Policy {{ policyId }} applying client_secret != null filter" level="DEBUG" />                
+        <mule:message-filter xmlns:mule="http://www.mulesoft.org/schema/mule/core" onUnaccepted="clientParameterViolation">
+			<mule:expression-filter xmlns:mule="http://www.mulesoft.org/schema/mule/core" expression="#[message.inboundProperties.'http.query.params'.client_secret != null]" name="clientSecretFilter"/>
+        </mule:message-filter>
+        <mule:set-variable variableName="client_secret" value="#[message.inboundProperties.'http.query.params'.client_secret]" />
+  		<!-- now actually do something useful -->
+        <mule:logger message="Policy {{ policyId }} access_token=#[flowVars['access_token']] client_id=#[flowVars['client_id']] client_secret=#[flowVars['client_secret']]" level="DEBUG" />
+        
+    </before>
+    
+    <!-- The following provides a custom trait to the RAML of the API if it uses APIkit. Otherwise it is ignored. -->
+	<!-- Copied this from the generic OAuth2 policy -->
+<!--  DEBUG THIS LATER   <raml-security-scheme id="oauth_2.0"><![CDATA[
+      description: |
+        This API supports OAuth 2.0 and OpenID Connect 1.0 for authenticating all API requests.
+      type: OAuth 2.0
+      describedBy:
+        headers:
+          Authorization:
+            description: |
+               Used to send a valid OAuth 2 access token. Do not use with the "access_token" query
+               string parameter.
+            type: string
+        queryParameters:
+          access_token:
+            description: |
+               Used to send a valid OAuth 2 access token. Do not use together with the "Authorization"
+               header
+            type: string
+        responses:
+          401:
+            description: |
+              Bad or expired token. This can happen if the user or the API revoked or expired an
+              access token. To fix, you should re-authenticate the user.
+          403:
+            description: |
+              Bad OAuth request (wrong consumer key, bad nonce, expired timestamp...). Unfortunately,
+              re-authenticating the user won't help here.
+      settings:
+        authorizationUri: INSERT_OAUTH2_AUTHORIZATION_URI
+        accessTokenUri: INSERT_OAUTH2_ACCESS_TOKEN_URI
+        authorizationGrants: INSERT_OAUTH2_AUTHORIZATION_GRANTS
+    ]]></raml-security-scheme>
+ -->
+    <after>
+        <mule:set-property propertyName="Custom-Header" value="Oauth 2.0 Introspect Policy" />
+        <!-- add X-agw-scope, etc. headers here? -->
+    </after>
+
+</policy>
