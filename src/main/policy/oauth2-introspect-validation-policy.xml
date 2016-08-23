@@ -8,12 +8,14 @@
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xmlns:api-platform-gw="http://www.mulesoft.org/schema/mule/api-platform-gw"
     xmlns:scripting="http://www.mulesoft.org/schema/mule/scripting"
+    xmlns:json="http://www.mulesoft.org/schema/mule/json"
     xsi:schemaLocation="http://www.mulesoft.org/schema/mule/policy http://www.mulesoft.org/schema/mule/policy/current/mule-policy.xsd
                         http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
                         http://www.mulesoft.org/schema/mule/api-platform-gw http://www.mulesoft.org/schema/mule/api-platform-gw/current/mule-api-platform-gw.xsd
                         http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+                        http://www.mulesoft.org/schema/mule/json http://www.mulesoft.org/schema/mule/json/current/mule-json.xsd
                         http://www.mulesoft.org/schema/mule/scripting http://www.mulesoft.org/schema/mule/scripting/current/mule-scripting.xsd">
-   <!--  can't get id={{policyId}} to work for integers -->
+   <!--  can't get id={{policyId}} to work. Eclipse complains! -->
     <!--
         Based on the sample custom policy and the JWT validation policy (https://github.com/mulesoft/api-policies/tree/master/jwt-validation-policy)
 
@@ -28,24 +30,12 @@
         https://docs.mulesoft.com/api-manager/applying-custom-policies
     -->
 
-    <!--
-        A pointcut controls the scope of a policy application. You can use
-        different types of conditions to determine if the policy must be
-        applied.
-
-        api-platform-gw:api-pointcut: Applies the policy to a particular API.
-        apiName/apiVersion values are compared against the auto-discovery
-        global element defined in your Mule project.
-        See: https://docs.mulesoft.com/api-manager/api-auto-discovery
-
-        For other kinds of pointcut conditions see: 
-        https://docs.mulesoft.com/api-manager/applying-custom-policies
-    -->
     <pointcut>
         <api-platform-gw:api-pointcut apiName="{{ apiName }}" apiVersion="{{ apiVersionName }}"/>
     </pointcut>
     
-    <!-- can't get {{introspectPort}} to work for integers -->
+	<!-- XXX TODO: Add http vs. https, try to parse the introspectUri into components so the user of this policy doesn't have to. -->
+    <!-- This works with {{introspectPort}} but Eclipse complains that it's not an integer. -->
     <http:request-config name="http-request-config" host="{{introspectHost}}" port="{{introspectPort}}" doc:name="HTTP Request Configuration"/>
 
  	<!-- Response messages in case of rejecting a message -->
@@ -95,14 +85,13 @@
         <mule:set-variable variableName="authn" value="#[message.inboundProperties.'http.query.params'.client_id]:#[message.inboundProperties.'http.query.params'.client_secret]" />
         <mule:set-variable variableName="Authorization" value="Basic #[java.util.Base64.getEncoder().encodeToString(flowVars.'authn'.getBytes())]" />
 
-        <mule:logger message="Policy {{ policyId }} access_token=#[flowVars.'access_token'] authn=#[flowVars.'authn'] Authorization=#[flowVars.'Authorization']" level="WARN" />
+        <mule:logger message="Policy {{ policyId }} access_token=#[flowVars.'access_token'] authn=#[flowVars.'authn'] Authorization=#[flowVars.'Authorization']" level="DEBUG" />
         <!-- now actually do something useful 
         	Invoke the introspect endpoint with HTTP Basc Auth(client_id:client_secret) for the Authorization header
         	and query parameter 'token=<access_token>'   
         -->
-        <mule:logger message="Policy {{ policyId }} invoking introspectUri: {{introspectHost}}:{{introspectPort}}/{{introspectPath}}" level="WARN" />
+        <mule:logger message="Policy {{ policyId }} invoking introspectUri: {{introspectHost}}:{{introspectPort}}/{{introspectPath}}" level="DEBUG" />
         <!-- See https://forums.mulesoft.com/questions/2466/is-it-possible-to-call-a-rest-service-from-custom-policy-of-anypoint-platform.html -->     
-		<mule:set-variable variableName="originalPayload" value="#[payload]" />
      	<mule:enricher target="flowVars.'introspect_response'">
        		<mule:processor-chain>
        		    <http:request config-ref="http-request-config" path="{{introspectPath}}" method="POST">
@@ -111,18 +100,34 @@
    		                <http:header headerName="Authorization" value="#[flowVars.'Authorization']" /> 
        		    	</http:request-builder>	
        		    </http:request>
-	            <mule:object-to-string-transformer doc:name="Object to String"/>
+       		    <mule:object-to-string-transformer doc:name="Object to String"/>
+       		    <mule:logger message="payload: #[payload] intro: #[flowVars.'introspect_response']" level="DEBUG" />
+                <mule:logger level="DEBUG"/>	
        		</mule:processor-chain>
      	</mule:enricher>
-     	<mule:logger message="Introspect response: #[flowVars.'introspect_response']" level="WARN"/>      
-		<!-- Restore original payload and headers -->
-		<mule:set-payload value="#[flowVars['originalPayload']]" />
-		<!-- compare scopes, etc? -->
-		<!-- need to turn the string into JSON in and then map to X-AGW-* -->
-        <mule:set-property propertyName="X-AGW-introspect" value="#[flowVars.'introspect_response']" />
+     	<mule:logger message="Introspect response: #[flowVars.'introspect_response']" level="DEBUG"/>        	
+		<!-- set X-AGW-* headers based on observed (undocumented) behavior of Mulesoft's OAuth 2.0 validation policy -->
+	    <mule:set-property propertyName="X-AGW-introspect" value="#[flowVars.'introspect_response']" />
+		<!-- I couldn't figure out how to do this in "native" Mule-speak. Python is my hammer: -->
+		<!-- does this clobber the payload? -->		
+	    <scripting:component>
+             <scripting:script engine="jython"><![CDATA[
+# Set an X-AGW- header for each key and value present in the map returned by the introspect endpoint
+import json
+r = message.getProperty('X-AGW-introspect')
+map=json.loads(r)
+for key in map:
+  #print("Key: %s type: %s Value: %s"%(key,type(key),map[key]))
+  k = 'X-AGW-'+key  # apparently can't pass an immutable string as the key
+  message.setOutboundProperty(k,map[key])
+]]>
+        	</scripting:script>
+        </scripting:component>
+
+		<!-- XXX TODO: compare scopes, etc? -->
 
 
-        <!-- clean up variables, properties, etc. -->
+        <!-- clean up variables, properties, etc. not needed by downstream flow -->
         
     </before>
     
