@@ -68,4 +68,10 @@ configuration:
     sensitive: false
     type: int
     optional: false
-    
+  - 
+    propertyName: scopes
+    name: Scopes
+    description: OAuth 2.0 required scopes (leave blank if none)
+    sensitive: false
+    type: string
+    optional: true   
