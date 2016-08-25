@@ -49,24 +49,27 @@ category: Security
 configuration:
   - 
     propertyName: introspectPath
-    name: Introspect URI
+    name: Introspect Path
     description: OAuth 2.0 introspect endoint path
     sensitive: false
     type: string
     optional: false
   - 
-    propertyName: introspectHost
-    name: Introspect host
-    description: OAuth 2.0 introspect endoint host
+    propertyName: OAuthHost
+    name: OAuth host
+    description: OAuth 2.0 server host
     sensitive: false
     type: string
     optional: false
   - 
-    propertyName: introspectPort
-    name: Introspect port
+    propertyName: OAuthPort
+    name: OAuth port
     description: OAuth 2.0 introspect endoint port
     sensitive: false
     type: int
+    minimumValue: 1
+    maximumValue: 65535
+    defaultValue: 8080
     optional: false
   - 
     propertyName: scopes

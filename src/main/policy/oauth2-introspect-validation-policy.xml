@@ -57,7 +57,7 @@
         Based on the sample custom policy and the JWT validation policy (https://github.com/mulesoft/api-policies/tree/master/jwt-validation-policy)
 
         The policy has these configuration parameters (see the YAML file):
-        - introspectHost,Port,Uri: RFC 7662 introspect endpoint
+        - OAuthHost,Port,Uri: RFC 7662 introspect endpoint
         All other RFC 6749 endpoints are defined in the RAML for the given app being protected.
         It is important that the introspect endpoint be coordinated with them.
 
@@ -72,8 +72,8 @@
     </pointcut>
     
 	<!-- XXX TODO: Add http vs. https, try to parse the introspectUri into components so the user of this policy doesn't have to. -->
-    <!-- This works with {{introspectPort}} but Eclipse complains that it's not an integer. -->
-    <http:request-config name="http-request-config" host="{{introspectHost}}" port="{{introspectPort}}" doc:name="HTTP Request Configuration"/>
+    <!-- This works with {{OAuthPort}} but Eclipse complains that it's not an integer. -->
+    <http:request-config name="http-request-config" host="{{OAuthHost}}" port="{{OAuthPort}}" doc:name="HTTP Request Configuration"/>
 
  	<!-- Response messages in case of rejecting a message -->
  	<!-- Various syntax errors (missing or malformed Authorization header, client_id, client_secret query parameters -->
@@ -136,7 +136,7 @@
         	Invoke the introspect endpoint with HTTP Basc Auth(client_id:client_secret) for the Authorization header
         	and query parameter 'token=<access_token>'   
         -->
-        <mule:logger message="Policy {{ policyId }} invoking introspectUri: {{introspectHost}}:{{introspectPort}}/{{introspectPath}}" level="DEBUG" />
+        <mule:logger message="Policy {{ policyId }} invoking introspectUri: {{OAuthHost}}:{{OAuthPort}}/{{introspectPath}}" level="DEBUG" />
         <!-- See https://forums.mulesoft.com/questions/2466/is-it-possible-to-call-a-rest-service-from-custom-policy-of-anypoint-platform.html -->
         <!-- save the original payload (usually null for a GET) -->
 		<mule:logger message="PAYLOAD BEFORE: #[payload]" level="DEBUG"/>
@@ -213,6 +213,7 @@ result=payload
     <!-- The following provides a custom trait to the RAML of the API if it uses APIkit. Otherwise it is ignored. -->
 	<!-- Copied this from the generic OAuth2 policy -->
 	<!-- XXX I'm not sure if this becomes the RAML snipped in the API policy manager... Will need to see. -->
+	<!-- 
 	<raml-security-scheme id="oauth_2_0_introspect"><![CDATA[
 description: |
   This API supports OAuth 2.0 for authenticating all API requests. 
@@ -243,12 +244,12 @@ describedBy:
         Bad OAuth request (wrong consumer key, bad nonce, expired timestamp...). Unfortunately,
         re-authenticating the user won't help here.
 settings:
-  authorizationUri: INSERT_OAUTH2_AUTHORIZATION_URI
-  accessTokenUri: INSERT_OAUTH2_ACCESS_TOKEN_URI
+  authorizationUri: {{authorizationUri}}
+  accessTokenUri: {{accessTokenUri}}
   authorizationGrants: [ INSERT_OAUTH2_AUTHORIZATION_GRANTS ]
   scopes: [ INSERT_OAUTH2_REQUIRED_SCOPES ]
       ]]></raml-security-scheme>
-    
+ -->   
     <after>
         <mule:set-property propertyName="Custom-Header" value="Oauth 2.0 Introspect Policy" />
         <!-- remove flowVars, etc. here? -->
