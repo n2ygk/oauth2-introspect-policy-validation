@@ -98,7 +98,7 @@ So, I conclude that the new “standard” is what’s used for OpenAM and PingF
 
 **Additional observed flowVars:**
 
-https://docs.mulesoft.com/release-notes/api-gateway-2.0.2-release-notes documents `flowVars[\_agwTokenContext]` 
+https://docs.mulesoft.com/release-notes/api-gateway-2.0.2-release-notes documents `flowVars[_agwTokenContext]` 
 which on inspection is a String containing the returned JSON map.
 
 I've also seen these flowVars inbound:

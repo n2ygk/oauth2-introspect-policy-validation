@@ -113,7 +113,6 @@
         <mule:message-filter xmlns:mule="http://www.mulesoft.org/schema/mule/core" onUnaccepted="authorizationHeaderViolation">
 			<mule:expression-filter xmlns:mule="http://www.mulesoft.org/schema/mule/core" expression="#[message.inboundProperties.'Authorization' != null]" name="AuthorizationHeaderFilter"/>
         </mule:message-filter>
-        <!-- TODO: combine these into one statement -->                
         <mule:logger message="Policy {{ policyId }} applying 'message.inboundProperties.'Authorization'.startsWith('Bearer ')' filter" level="DEBUG" />        
         <mule:message-filter xmlns:mule="http://www.mulesoft.org/schema/mule/core" onUnaccepted="authorizationHeaderViolation">
 			<mule:expression-filter xmlns:mule="http://www.mulesoft.org/schema/mule/core" expression="#[message.inboundProperties.'Authorization'.startsWith('Bearer ')]" name="AuthorizationHeaderFormatFilter"/>
@@ -141,7 +140,7 @@
         <!-- See https://forums.mulesoft.com/questions/2466/is-it-possible-to-call-a-rest-service-from-custom-policy-of-anypoint-platform.html -->
         <!-- save the original payload (usually null for a GET) -->
 		<mule:logger message="PAYLOAD BEFORE: #[payload]" level="DEBUG"/>
-     	<mule:enricher target="flowVars.'introspect_response'">
+		<mule:enricher target="flowVars.introspect_response">
        		<mule:processor-chain> 
        		    <http:request config-ref="http-request-config" path="{{introspectPath}}" method="POST">
      		        <http:request-builder>
@@ -154,7 +153,8 @@
        		    <mule:logger message="payload: #[payload] status=#[message.inboundProperties['http.status']] reason=#[message.inboundProperties['http.reason']]" level="DEBUG" />
        		    <mule:set-payload value="#[message.inboundProperties.'http.status']:#[payload]" />
      		</mule:processor-chain>
-       	</mule:enricher>
+		</mule:enricher>
+		<!-- XXX TODO: try using separate <enrich> elements above instead of breaking on ':' -->
 		<mule:set-variable variableName="introStatus" value="#[flowVars.introspect_response.substring(0,flowVars.introspect_response.indexOf(':'))]"/>
 		<mule:set-variable variableName="introPayload" value="#[flowVars.introspect_response.substring(flowVars.introspect_response.indexOf(':')+1)]"/>
 		<mule:logger message="PAYLOAD AFTER #[payload] introStatus=#[flowVars.introStatus]]" level="DEBUG"/>
@@ -162,18 +162,26 @@
 			<mule:expression-filter xmlns:mule="http://www.mulesoft.org/schema/mule/core" expression="#[flowVars.introStatus == 200]"/>
 		</mule:message-filter>
 		<!-- set X-AGW-* headers based on observed (undocumented) behavior of Mulesoft's OAuth 2.0 validation policy -->
-	    <mule:set-property propertyName="X-AGW-introspect" value="#[flowVars.introPayload]" /> <!-- XXX TODO: See what the right name for this should be -->
+	    <mule:set-variable variableName="_agwTokenContext" value="#[flowVars.introPayload]" />
+		<!-- see https://forums.mulesoft.com/questions/49326/how-do-i-convert-a-json-string-flowvar-to-a-javaut.html -->
+		<mule:enricher target="flowVars._agwUser" doc:name="Message Enricher">
+		     <mule:expression-transformer expression="#[new com.fasterxml.jackson.databind.ObjectMapper().readValue(flowVars._agwTokenContext, java.util.HashMap)]" doc:name="Expression"/>
+		</mule:enricher>   	
+		<mule:logger message="_agw_User: #[flowVars._agwUser]" level="DEBUG"/>
 		<!-- I couldn't figure out how to do this in "native" Mule-speak. Python is my hammer:-->
 	    <scripting:component>
              <scripting:script engine="jython"><![CDATA[
 # Set an X-AGW- header for each key and value present in the map returned by the introspect endpoint
 import json
-r = message.getProperty('X-AGW-introspect') # can I just use payload now?
+r = flowVars['_agwTokenContext']
 map=json.loads(r)
 for key in map:
   #print("Key: %s type: %s Value: %s"%(key,type(key),map[key]))
   k = 'X-AGW-'+key  # apparently can't pass an immutable string as the key
   message.setOutboundProperty(k,map[key])
+if 'user_id' in map: # make X-AGW-userid per OpenAM/PingFederate documentation
+  k = 'X-AGW-userid'
+  message.setOutboundProperty(k,map['user_id']) 
 # If there is a scopes policy configuration parameter, make sure all the scopes listed are found
 # in the scopes in map['scope']. If not return a 403 invalid scope error.
 expected_scopes="{{scopes}}" # the mustachioed scopes get replaced with configures scopes.
@@ -189,7 +197,7 @@ result=payload
 ]]>
         	</scripting:script>
         </scripting:component>
-		<mule:logger message="python script status=#[flowVars.pyStatus] payload=#[flowVars.pyPayload]" level="WARN"/>
+		<mule:logger message="python script status=#[flowVars.pyStatus] payload=#[flowVars.pyPayload]" level="DEBUG"/>
    		<mule:message-filter xmlns:mule="http://www.mulesoft.org/schema/mule/core" onUnaccepted="invalidScopeViolation">
 			<mule:expression-filter xmlns:mule="http://www.mulesoft.org/schema/mule/core" expression="#[flowVars.pyStatus == 200]"/>
 		</mule:message-filter>
