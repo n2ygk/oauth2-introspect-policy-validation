@@ -1,13 +1,13 @@
 # OAuth 2.0 Access Token Introspection Policy
 ## Introduction
-This custom policy is a replacement for the Mulesoft EE API Manager "out-of-the-box"
+This Mulesoft API Gateway custom policy is a replacement for the Mulesoft Anypoint Platform API Manager's "out-of-the-box"
 [OAuth 2.0 Access Token Enforcement Using External Provider Policy](https://docs.mulesoft.com/api-manager/external-oauth-2.0-token-validation-policy).
 Rather than Mulesoft's (undocumented) approach for token validation, this policy uses the [RFC 7662](https://tools.ietf.org/html/rfc7662)
 introspect endpoint to both validate the Access Token and return the valid scopes and other RFC 7662 response values
 for use downstream in the API implementation.
 
-(There's also an [OpenAM OAuth Token Enforcement Policy](https://docs.mulesoft.com/api-manager/openam-oauth-token-enforcement-policy) that we currently
-lack access to (due to some crazy licensing entitlement issues with respect to federated identity management). While not able to test that
+(There's also an [OpenAM OAuth Token Enforcement Policy](https://docs.mulesoft.com/api-manager/openam-oauth-token-enforcement-policy) that apparently
+is tied to identity federation with Mulesoft Anypoint Platform. While not yet able to test that
 policy, it appears likely that it does not use the RFC 7662 introspection approach and more likely uses the userinfo or tokeninfo endpoints.)
 
 ## API Developer Notes
@@ -19,8 +19,8 @@ This policy requires API consumers to supply:
 **N.B.** Whereas the Mulesoft OAuth 2.0 Access Token Enforcement policy only needs the
 Authorization Token in order to validate it, this policy additionally requires the Client ID and
 Secret, since OpenAM will only respond to an introspect that has been validated with Basic Auth
-using them. This is not such a big deal since, if one is client registration-requiring policies (such as throttling
-or rate-liming SLAs), then consumer apps must register to use the API and provide their client\_id and client\_secret.
+using them. This is not such a big deal since we typicaly require client registration in order to use other
+client-id-required polices such as SLAs or for client app tracking.
 
 ### OAuth 2.0 and client-id-required RAML 
 API developers that use this policy should add the appropriate OAuth 2.0 Security Scheme and client-id-required Trait
@@ -37,24 +37,34 @@ on the keys in the introspection [RFC 7662](https://tools.ietf.org/html/rfc7662#
 - X-AGW-active
 - X-AGW-client_id
 - X-AGW-exp
-- X-AGW-introspect XXX json map returned by introspect endpoint (replace with _agwTokenContext flowVar)
 - X-AGW-iss
 - X-AGW-scope
 - X-AGW-sub
 - X-AGW-token_type
 - X-AGW-user_id
-- X-AGW-userid XXX TODO
-- etc. TBD upon further experimentation.
+- X-AGW-userid (added for compatibility with documented Mulesoft OpenAM and PingFederate policies)
 
 **FlowVars:**
 
-- \_agwTokenContext: XXX TODO: String RFC 7662 JSON returned by introspect endpoint. (supplement with userid?)
-- \_agwHashMap: XXX TODO: HashMap version of the same.
-- \_client_id: XXX TODO:
-- \_client_name: XXX TODO:
+- \_agwTokenContext: JSON string representation of RFC 7662 response returned by introspect endpoint.
+- \_agwHashMap: java.util.HashMap version of the same.
+- \_client_id: XXX TODO?
+- \_client_name: XXX TODO?
+
+## Applying the Policy
+
+Apply the policy the usual way in API Manager. For now, fill in the host, port and URI path separately
+(TBD: handle URI as one parameter), as well as the list of required scopes.
+
+![alt-text](applied-policy.png "screen shot of example applied policy")
 
 ## Policy Developer Notes
 The following are further notes for developers of this Policy.
+
+### Installing the Policy
+
+Follow the Mulesoft instructions for adding custom policies, uploading the YAML and XML files.
+
 
 ### OpenAM as an OAuth 2.0 server with the RFC 7662 introspect endpoint
 OpenAM endpoints are documented here:
@@ -106,10 +116,16 @@ I've also seen these flowVars inbound:
 - \_client\_name
 
 
-### Caveats
+### CAVEATS
+- **Consider this an Alpha test experimental version!**
+- Support for HTTPS is **not implemented** yet.
 - This policy has been tested only with OpenAM 14.0, so might not work with other RFC 7662 implementations.
-- It has not yet been tested with an HTTPS endpoint (and needs to be fixed to use HTTPS).
-- Consider this an Alpha test version!
+- Two distinct, independent sets of client credentials (client\_id and client\_secret) are used:
+  - OAuth 2.0 client credentials used with the Oauth 2.0 server.
+  - Client credentials registered with the Mulesoft Anypoint Plaform which are used to implement SLAs, app usage tracking, etc.
+  To avoid confusion, the Anypoint Platform credentials are used to create OpenAM credentials so that they match. But, this is
+  no a requirement.
+- Credential caching is not done, so heavy API use will result in heavy load on the OAuth 2.0 introspection endpoint.
 
 ### Author
 Alan Crosswell
