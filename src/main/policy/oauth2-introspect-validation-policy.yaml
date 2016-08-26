@@ -35,8 +35,10 @@
 #
 name: OAuth 2.0 Access Token Introspection Policy
 description: |
-  Validates OAuth2/Open ID Connect Authorization token using the RFC 7662 introspect endpoint. 
-  Returns scope, sub, etc.
+  Validates OAuth 2.0 Authorization token using the RFC 7662 introspect endpoint.
+  Returns scope, sub, userid, etc. (see [RFC 7662](https://tools.ietf.org/html/rfc7662#page-6)).
+  This policy will require updates to the RAML definition in order to function. You can obtain the oauth_2_0 security scheme RAML snippet [here](https://github.com/raml-org/raml-spec/blob/master/versions/raml-08/raml-08.md#security),
+  the securedBy snippet [here](https://github.com/raml-org/raml-spec/blob/master/versions/raml-08/raml-08.md#usage-applying-a-security-scheme-to-an-api), and the client-id-required trait [here](https://docs.mulesoft.com/api-manager/client-id-based-policies).
 id: oauth2-token-introspection
 providedCharacteristics: 
   - OAuth 2.0 protected
@@ -53,8 +55,17 @@ configuration:
     description: OAuth 2.0 introspect endoint path
     sensitive: false
     type: string
+    defaultValue: openam/oauth2/introspect
     optional: false
   - 
+    propertyName: OAuthProto
+    name: OAuth protocol
+    description: OAuth 2.0 server protocol (HTTP or HTTPS)
+    sensitive: false
+    type: string
+    defaultValue: HTTPS
+    optional: false
+  -
     propertyName: OAuthHost
     name: OAuth host
     description: OAuth 2.0 server host
@@ -69,11 +80,19 @@ configuration:
     type: int
     minimumValue: 1
     maximumValue: 65535
-    defaultValue: 8080
+    defaultValue: 8443
     optional: false
   - 
+    propertyName: insecure
+    name: insecure TLS context (use for testing only)
+    description: Transport Layer Security certificate validation
+    sensitive: false
+    type: boolean
+    defaultValue: true
+    optional: true
+  - 
     propertyName: scopes
-    name: Scopes
+    name: Required scopes
     description: OAuth 2.0 required scopes (leave blank if none)
     sensitive: false
     type: string

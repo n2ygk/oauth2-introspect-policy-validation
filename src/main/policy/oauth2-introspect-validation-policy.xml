@@ -46,11 +46,13 @@
     xmlns:api-platform-gw="http://www.mulesoft.org/schema/mule/api-platform-gw"
     xmlns:scripting="http://www.mulesoft.org/schema/mule/scripting"
     xmlns:json="http://www.mulesoft.org/schema/mule/json"
+    xmlns:tls="http://www.mulesoft.org/schema/mule/tls"
     xsi:schemaLocation="http://www.mulesoft.org/schema/mule/policy http://www.mulesoft.org/schema/mule/policy/current/mule-policy.xsd
                         http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
                         http://www.mulesoft.org/schema/mule/api-platform-gw http://www.mulesoft.org/schema/mule/api-platform-gw/current/mule-api-platform-gw.xsd
                         http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
                         http://www.mulesoft.org/schema/mule/json http://www.mulesoft.org/schema/mule/json/current/mule-json.xsd
+                        http://www.mulesoft.org/schema/mule/tls http://www.mulesoft.org/schema/mule/tls/current/mule-tls.xsd
                         http://www.mulesoft.org/schema/mule/scripting http://www.mulesoft.org/schema/mule/scripting/current/mule-scripting.xsd">
    <!--  can't get id={{policyId}} to work. Eclipse complains! -->
     <!--
@@ -73,7 +75,13 @@
     
 	<!-- XXX TODO: Add http vs. https, try to parse the introspectUri into components so the user of this policy doesn't have to. -->
     <!-- This works with {{OAuthPort}} but Eclipse complains that it's not an integer. -->
-    <http:request-config name="http-request-config" host="{{OAuthHost}}" port="{{OAuthPort}}" doc:name="HTTP Request Configuration"/>
+    
+    <http:request-config name="http-request-config" protocol="{{OAuthProto}}" host="{{OAuthHost}}" port="{{OAuthPort}}" doc:name="HTTP Request Configuration">
+		<tls:context>
+			<!-- use this while debugging only! In production our cert will be signed by a well-known CA -->
+            <tls:trust-store insecure="{{insecure}}"/>
+        </tls:context>
+	</http:request-config>
 
  	<!-- Response messages in case of rejecting a message -->
  	<!-- Various syntax errors (missing or malformed Authorization header, client_id, client_secret query parameters -->
