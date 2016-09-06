@@ -79,7 +79,7 @@
     
     <http:request-config name="http-request-config" protocol="{{OAuthProto}}" host="{{OAuthHost}}" port="{{OAuthPort}}" doc:name="HTTP Request Configuration">
 		<tls:context>
-			<!-- use this while DEBUGging only! In production our cert will be signed by a well-known CA -->
+			<!-- use this while {{logLevel}}ging only! In production our cert will be signed by a well-known CA -->
             <tls:trust-store insecure="{{insecure}}"/>
         </tls:context>
 	</http:request-config>
@@ -118,37 +118,37 @@
 
     <before>
 		<!-- Validate headers and parameters -->
-        <mule:logger message="Policy {{ policyId }} applying 'message.inboundProperties.'Authorization' filter" level="DEBUG" />        
+        <mule:logger message="Policy {{ policyId }} applying 'message.inboundProperties.'Authorization' filter" level="{{logLevel}}" />        
         <mule:message-filter xmlns:mule="http://www.mulesoft.org/schema/mule/core" onUnaccepted="authorizationHeaderViolation">
 			<mule:expression-filter xmlns:mule="http://www.mulesoft.org/schema/mule/core" expression="#[message.inboundProperties.'Authorization' != null]" name="AuthorizationHeaderFilter"/>
         </mule:message-filter>
-        <mule:logger message="Policy {{ policyId }} applying 'message.inboundProperties.'Authorization'.startsWith('Bearer ')' filter" level="DEBUG" />        
+        <mule:logger message="Policy {{ policyId }} applying 'message.inboundProperties.'Authorization'.startsWith('Bearer ')' filter" level="{{logLevel}}" />        
         <mule:message-filter xmlns:mule="http://www.mulesoft.org/schema/mule/core" onUnaccepted="authorizationHeaderViolation">
 			<mule:expression-filter xmlns:mule="http://www.mulesoft.org/schema/mule/core" expression="#[message.inboundProperties.'Authorization'.startsWith('Bearer ')]" name="AuthorizationHeaderFormatFilter"/>
         </mule:message-filter>
         <mule:set-variable variableName="access_token" value="#[message.inboundProperties.'Authorization'.substring(message.inboundProperties.'Authorization'.indexOf(' ') + 1)]" />
-        <mule:logger message="Access token is #[flowVars.'access_token']" level="DEBUG" />
-        <mule:logger message="Policy {{ policyId }} applying client_id != null filter" level="DEBUG" />        
+        <mule:logger message="Access token is #[flowVars.'access_token']" level="{{logLevel}}" />
+        <mule:logger message="Policy {{ policyId }} applying client_id != null filter" level="{{logLevel}}" />        
         <mule:message-filter xmlns:mule="http://www.mulesoft.org/schema/mule/core" onUnaccepted="clientParameterViolation">
 			<mule:expression-filter xmlns:mule="http://www.mulesoft.org/schema/mule/core" expression="#[message.inboundProperties.'http.query.params'.client_id != null]" name="clientIdFilter"/>
         </mule:message-filter>
         <mule:set-variable variableName="client_id" value="#[message.inboundProperties.'http.query.params'.client_id]" />
-        <mule:logger message="Policy {{ policyId }} applying client_secret != null filter" level="DEBUG" />                
+        <mule:logger message="Policy {{ policyId }} applying client_secret != null filter" level="{{logLevel}}" />                
         <mule:message-filter xmlns:mule="http://www.mulesoft.org/schema/mule/core" onUnaccepted="clientParameterViolation">
 			<mule:expression-filter xmlns:mule="http://www.mulesoft.org/schema/mule/core" expression="#[message.inboundProperties.'http.query.params'.client_secret != null]" name="clientSecretFilter"/>
         </mule:message-filter>
         <mule:set-variable variableName="authn" value="#[message.inboundProperties.'http.query.params'.client_id]:#[message.inboundProperties.'http.query.params'.client_secret]" />
         <mule:set-variable variableName="Authorization" value="Basic #[java.util.Base64.getEncoder().encodeToString(flowVars.'authn'.getBytes())]" />
 
-        <mule:logger message="Policy {{ policyId }} access_token=#[flowVars.'access_token'] authn=#[flowVars.'authn'] Authorization=#[flowVars.'Authorization']" level="DEBUG" />
+        <mule:logger message="Policy {{ policyId }} access_token=#[flowVars.'access_token'] authn=#[flowVars.'authn'] Authorization=#[flowVars.'Authorization']" level="{{logLevel}}" />
         <!-- now actually do something useful 
         	Invoke the introspect endpoint with HTTP Basc Auth(client_id:client_secret) for the Authorization header
         	and query parameter 'token=<access_token>'   
         -->
-        <mule:logger message="Policy {{ policyId }} invoking introspectUri: {{OAuthHost}}:{{OAuthPort}}/{{introspectPath}}" level="DEBUG" />
+        <mule:logger message="Policy {{ policyId }} invoking introspectUri: {{OAuthHost}}:{{OAuthPort}}/{{introspectPath}}" level="{{logLevel}}" />
         <!-- See https://forums.mulesoft.com/questions/2466/is-it-possible-to-call-a-rest-service-from-custom-policy-of-anypoint-platform.html -->
         <!-- save the original payload (usually null for a GET) -->
-		<mule:logger message="PAYLOAD BEFORE: #[payload]" level="DEBUG"/>
+		<mule:logger message="PAYLOAD BEFORE: #[payload]" level="{{logLevel}}"/>
 		<mule:enricher target="flowVars.introspect_response">
        		<mule:processor-chain> 
        		    <http:request config-ref="http-request-config" path="{{introspectPath}}" method="POST">
@@ -159,14 +159,14 @@
        		    	<http:success-status-code-validator values="200..699"/>
        		    </http:request>
        		    <mule:object-to-string-transformer doc:name="Object to String"/>
-       		    <mule:logger message="INTROSPECT payload: #[payload] status=#[message.inboundProperties['http.status']] reason=#[message.inboundProperties['http.reason']]" level="DEBUG" />
+       		    <mule:logger message="INTROSPECT payload: #[payload] status=#[message.inboundProperties['http.status']] reason=#[message.inboundProperties['http.reason']]" level="{{logLevel}}" />
        		    <mule:set-payload value="#[message.inboundProperties.'http.status']:#[payload]" />
      		</mule:processor-chain>
 		</mule:enricher>
 		<!-- XXX TODO: try using separate <enrich> elements above instead of breaking on ':' -->
 		<mule:set-variable variableName="introStatus" value="#[flowVars.introspect_response.substring(0,flowVars.introspect_response.indexOf(':'))]"/>
 		<mule:set-variable variableName="introPayload" value="#[flowVars.introspect_response.substring(flowVars.introspect_response.indexOf(':')+1)]"/>
-		<mule:logger message="PAYLOAD AFTER #[payload] introStatus=#[flowVars.introStatus]]" level="DEBUG"/>
+		<mule:logger message="PAYLOAD AFTER #[payload] introStatus=#[flowVars.introStatus]]" level="{{logLevel}}"/>
    		<mule:message-filter xmlns:mule="http://www.mulesoft.org/schema/mule/core" onUnaccepted="introspectViolation">
 			<mule:expression-filter xmlns:mule="http://www.mulesoft.org/schema/mule/core" expression="#[flowVars.introStatus == 200]"/>
 		</mule:message-filter>
@@ -176,7 +176,7 @@
 		<mule:enricher target="flowVars._agwUser" doc:name="Message Enricher">
 		     <mule:expression-transformer expression="#[new com.fasterxml.jackson.databind.ObjectMapper().readValue(flowVars._agwTokenContext, java.util.HashMap)]" doc:name="Expression"/>
 		</mule:enricher>   	
-		<mule:logger message="_agw_User: #[flowVars._agwUser]" level="DEBUG"/>
+		<mule:logger message="_agw_User: #[flowVars._agwUser]" level="{{logLevel}}"/>
 		<!-- I couldn't figure out how to do this in "native" Mule-speak. Python is my hammer:-->
 	    <scripting:component>
              <scripting:script engine="jython"><![CDATA[
@@ -209,7 +209,7 @@ result=payload
 ]]>
         	</scripting:script>
         </scripting:component>
-		<mule:logger message="python script status=#[flowVars.pyStatus] payload=#[flowVars.pyPayload]" level="DEBUG"/>
+		<mule:logger message="python script status=#[flowVars.pyStatus] payload=#[flowVars.pyPayload]" level="{{logLevel}}"/>
    		<mule:message-filter xmlns:mule="http://www.mulesoft.org/schema/mule/core" onUnaccepted="invalidScopeViolation">
 			<mule:expression-filter xmlns:mule="http://www.mulesoft.org/schema/mule/core" expression="#[flowVars.pyStatus == 200]"/>
 		</mule:message-filter>
@@ -218,7 +218,7 @@ result=payload
 
 
         <!-- clean up variables, properties, etc. not needed by downstream flow -->
-		<mule:logger message="PAYLOAD RESET #[payload]" level="DEBUG"/>
+		<mule:logger message="PAYLOAD RESET #[payload]" level="{{logLevel}}"/>
 		       
     </before>
     

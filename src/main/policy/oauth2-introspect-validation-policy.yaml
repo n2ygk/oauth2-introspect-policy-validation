@@ -97,6 +97,14 @@ configuration:
     sensitive: false
     type: string
     optional: true
+  - 
+    propertyName: logLevel
+    name: logging level
+    description: level to log messages at (primarily for debugging). Set to WARN to see log messages from this policy without having to see other debug-level messages.
+    sensitive: false
+    type: string
+    defaultValue: DEBUG
+    optional: false
 ramlSnippet: |
   This policy will require updates to the RAML definition in order to function. Add this snippet to your RAML
   See more about the oauth_2_0 security scheme RAML snippet [here](https://github.com/raml-org/raml-spec/blob/master/versions/raml-08/raml-08.md#security),
