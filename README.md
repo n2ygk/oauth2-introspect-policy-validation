@@ -127,7 +127,11 @@ I've also seen these flowVars inbound:
   no a requirement.
 - Credential caching is not done, so heavy API use will result in heavy load on the OAuth 2.0 introspection endpoint.
 
-### Author
+### TO DO
+- Remove client credentials so they don't flow downstream to the app?
+- Add TTL-based caching with [object store connector](https://docs.mulesoft.com/mule-user-guide/v/3.8/object-store-connector).
+
+## Author
 Alan Crosswell
 
 Copyright (c) 2016 The Trustees of Columbia University in the City of New York
