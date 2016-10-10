@@ -118,7 +118,6 @@ I've also seen these flowVars inbound:
 
 ### CAVEATS
 - **Consider this an Alpha test experimental version!**
-- Support for HTTPS is **not implemented** yet.
 - This policy has been tested only with OpenAM 14.0, so might not work with other RFC 7662 implementations.
 - Two distinct, independent sets of client credentials (client\_id and client\_secret) are used:
   - OAuth 2.0 client credentials used with the Oauth 2.0 server.
