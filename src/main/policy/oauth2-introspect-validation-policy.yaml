@@ -58,6 +58,20 @@ configuration:
     defaultValue: openam/oauth2/introspect
     optional: false
   - 
+    propertyName: introspectClientId
+    name: client ID used for OAuth token introspection
+    description: Leave blank if the client credentials should be used. Otherwise supply client ID.
+    sensitive: false
+    type: string
+    optional: true
+  - 
+    propertyName: introspectClientSecret
+    name: client secret used for OAuth token introspection
+    description: Leave blank if the client credentials should be used. Otherwise supply client secret.
+    sensitive: true
+    type: string
+    optional: true
+  - 
     propertyName: OAuthProto
     name: OAuth protocol
     description: OAuth 2.0 server protocol (HTTP or HTTPS)

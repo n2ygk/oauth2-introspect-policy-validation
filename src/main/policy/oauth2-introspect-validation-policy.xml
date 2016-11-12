@@ -137,7 +137,15 @@
         <mule:message-filter xmlns:mule="http://www.mulesoft.org/schema/mule/core" onUnaccepted="clientParameterViolation">
 			<mule:expression-filter xmlns:mule="http://www.mulesoft.org/schema/mule/core" expression="#[message.inboundProperties.'http.query.params'.client_secret != null]" name="clientSecretFilter"/>
         </mule:message-filter>
-        <mule:set-variable variableName="authn" value="#[message.inboundProperties.'http.query.params'.client_id]:#[message.inboundProperties.'http.query.params'.client_secret]" />
+        <!-- The introspect authorization credentials can come either from the client app or policy configuration if non-null. Set it accordingly. -->
+     	<mule:choice>
+      		<mule:when expression="#['{{introspectClientId}}' != '']">
+ 				<mule:set-variable variableName="authn" value="{{introspectClientId}}:{{introspectClientSecret}}" />	
+        	</mule:when>
+        	<mule:otherwise>
+           	    <mule:set-variable variableName="authn" value="#[message.inboundProperties.'http.query.params'.client_id]:#[message.inboundProperties.'http.query.params'.client_secret]" />
+        	</mule:otherwise>
+       	</mule:choice>
         <mule:set-variable variableName="Authorization" value="Basic #[java.util.Base64.getEncoder().encodeToString(flowVars.'authn'.getBytes())]" />
 
         <mule:logger message="Policy {{ policyId }} access_token=#[flowVars.'access_token'] authn=#[flowVars.'authn'] Authorization=#[flowVars.'Authorization']" level="{{logLevel}}" />

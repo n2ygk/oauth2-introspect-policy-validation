@@ -6,21 +6,23 @@ Rather than Mulesoft's (undocumented) approach for token validation, this policy
 introspect endpoint to both validate the Access Token and return the valid scopes and other RFC 7662 response values
 for use downstream in the API implementation.
 
-(There's also an [OpenAM OAuth Token Enforcement Policy](https://docs.mulesoft.com/api-manager/openam-oauth-token-enforcement-policy) that apparently
-is tied to identity federation with Mulesoft Anypoint Platform. While not yet able to test that
-policy, it appears likely that it does not use the RFC 7662 introspection approach and more likely uses the userinfo or tokeninfo endpoints.)
+(There's also an [OpenAM OAuth Token Enforcement Policy](https://docs.mulesoft.com/api-manager/openam-oauth-token-enforcement-policy)
+and a [PingFederate OAuth Token Enforcement Policy](https://docs.mulesoft.com/api-manager/pingfederate-oauth-token-enforcement-policy) that apparently
+are tied to identity federation with Mulesoft Anypoint Platform. While not yet able to test that
+policy, it appears likely that it does not use the RFC 7662 introspection approach and more likely uses the userinfo, tokeninfo or other endpoints.)
 
 ## API Developer Notes
+### Which Client Credential?
+Some _introspect_ implementations require (or support, based on configuration), use of the same
+client credentials that were used to obtain an access token to introspect it while others use a
+different (e.g. Resource Server's) client credentials. As such, this policy will either use
+the configured credentials, or, if none are configured, use those passed along in the API call.
+
 ### Required Headers and Query Parameters
 This policy requires API consumers to supply:
  - Authorization: "Bearer *access_token*" header
  - query parameters of client\_id=*id* and client\_secret=*secret*
 
-**N.B.** Whereas the Mulesoft OAuth 2.0 Access Token Enforcement policy only needs the
-Authorization Token in order to validate it, this policy additionally requires the Client ID and
-Secret, since OpenAM will only respond to an introspect that has been validated with Basic Auth
-using them. This is not such a big deal since we typicaly require client registration in order to use other
-client-id-required polices such as SLAs or for client app tracking.
 
 ### OAuth 2.0 and client-id-required RAML 
 API developers that use this policy should add the appropriate OAuth 2.0 Security Scheme and client-id-required Trait
@@ -65,10 +67,16 @@ The following are further notes for developers of this Policy.
 
 Follow the Mulesoft instructions for adding custom policies, uploading the YAML and XML files.
 
-
 ### OpenAM as an OAuth 2.0 server with the RFC 7662 introspect endpoint
-OpenAM endpoints are documented here:
-https://backstage.forgerock.com/#!/docs/openam/13.5/dev-guide#rest-api-oauth2-client-endpoints
+OpenAM endpoints are documented [here](https://backstage.forgerock.com/#!/docs/openam/13.5/dev-guide#rest-api-oauth2-client-endpoints)
+
+The introspect endpoint requires the following:
+ - method POST
+ - header Authorization: Basic *HTTPBasicAuth(client\_id,client\_secret)*
+ - parameter token=*access\_token*
+
+### PingFederate as an OAuth 2.0 server with the RFC 7662 introspect endpoint
+PingFederate endpoints are documented [here](https://documentation.pingidentity.com/pingfederate/pf82/index.shtml#adminGuide/concept/oAuth2_0Endpoints.html)
 
 The introspect endpoint requires the following:
  - method POST
