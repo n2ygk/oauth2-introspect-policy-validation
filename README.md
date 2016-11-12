@@ -58,7 +58,8 @@ on the keys in the introspection [RFC 7662](https://tools.ietf.org/html/rfc7662#
 Apply the policy the usual way in API Manager. For now, fill in the host, port and URI path separately
 (TBD: handle URI as one parameter), as well as the list of required scopes.
 
-![alt-text](applied-policy.png "screen shot of example applied policy")
+![alt-text](applied-policy-1.png "screen shot of example policy being applied")
+![alt-text](applied-policy-2.png "screen shot of example policy being applied")
 
 ## Policy Developer Notes
 The following are further notes for developers of this Policy.
