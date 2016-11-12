@@ -126,16 +126,20 @@ I've also seen these flowVars inbound:
 
 ### CAVEATS
 - **Consider this an Alpha test experimental version!**
-- This policy has been tested only with OpenAM 14.0, so might not work with other RFC 7662 implementations.
+- This policy has been tested only with OpenAM 14.0 and PingFederate 8.2.2, so might not work with other RFC 7662 implementations.
 - Two distinct, independent sets of client credentials (client\_id and client\_secret) are used:
   - OAuth 2.0 client credentials used with the Oauth 2.0 server.
   - Client credentials registered with the Mulesoft Anypoint Plaform which are used to implement SLAs, app usage tracking, etc.
-  To avoid confusion, the Anypoint Platform credentials are used to create OpenAM credentials so that they match. But, this is
-  no a requirement.
+  To avoid confusion, the Anypoint Platform credentials are used to create OpenAM/PingFederate credentials so that they match. But, this is
+  not a requirement. I'm assuming that once integrated with MuleSoft's API Platform, the credentials are synced up by MuleSoft
+  call OpenAM/PingFederate APIs.
+  - As noted above, there can be two sets of client credentials: Those used by the client app to get the access token and those
+  used by the resource server to introspect that access token. Which credential is the "right one" is configurable in the OAuth server.
 - Credential caching is not done, so heavy API use will result in heavy load on the OAuth 2.0 introspection endpoint.
 
 ### TO DO
-- Remove client credentials so they don't flow downstream to the app?
+- Remove client credentials so they don't flow downstream to the app.
+- Clean up intermediate flowVars so they don't flow downstream to the app.
 - Add TTL-based caching with [object store connector](https://docs.mulesoft.com/mule-user-guide/v/3.8/object-store-connector).
 
 ## Author
